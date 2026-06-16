@@ -62,6 +62,7 @@ class AITNeuralODE(eqx.Module):
             saveat=dfx.SaveAt(t1=True),
             stepsize_controller=self.stepsize_controller,
             max_steps=self.max_steps,
+            throw=False
         )
         xT, AT, xbarT = sol.ys[0][-1], sol.ys[1][-1], sol.ys[2][-1]
         return xbarT + (1.0 - AT) * xT, sol.ts[-1]
