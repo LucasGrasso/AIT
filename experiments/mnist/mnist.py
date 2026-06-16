@@ -18,103 +18,58 @@ from ait import AITNeuralODE, NeuralODE
 from .data import get_loaders
 
 
-def gnorm(ch):
-    return eqx.nn.GroupNorm(min(32, ch), ch)
+class ConvField(eqx.Module):
+    """(C,H,W)->(C,H,W). 1x1 -> 3x3 -> 1x1"""
 
-
-class Encoder(eqx.Module):
     c1: eqx.nn.Conv2d
-    n1: eqx.nn.GroupNorm
     c2: eqx.nn.Conv2d
-    n2: eqx.nn.GroupNorm
     c3: eqx.nn.Conv2d
 
-    def __init__(self, key, ch=64):
+    def __init__(self, key, channels=1, nf=64):
         k = jax.random.split(key, 3)
-        self.c1 = eqx.nn.Conv2d(1, ch, 3, key=k[0])
-        self.n1 = gnorm(ch)
-        self.c2 = eqx.nn.Conv2d(ch, ch, 4, stride=2, padding=1, key=k[1])
-        self.n2 = gnorm(ch)
-        self.c3 = eqx.nn.Conv2d(ch, ch, 4, stride=2, padding=1, key=k[2])
+        self.c1 = eqx.nn.Conv2d(channels, nf, 1, key=k[0])
+        self.c2 = eqx.nn.Conv2d(nf, nf, 3, padding=1, key=k[1])
+        self.c3 = eqx.nn.Conv2d(nf, channels, 1, key=k[2])
 
-    def __call__(self, x):  # (1,28,28) -> (64,6,6)
-        x = jax.nn.relu(self.n1(self.c1(x)))
-        x = jax.nn.relu(self.n2(self.c2(x)))
+    def __call__(self, x):
+        x = jax.nn.relu(self.c1(x))
+        x = jax.nn.relu(self.c2(x))
         return self.c3(x)
 
 
-class ConvField(eqx.Module):
-    n1: eqx.nn.GroupNorm
-    c1: eqx.nn.Conv2d
-    n2: eqx.nn.GroupNorm
-    c2: eqx.nn.Conv2d
-    n3: eqx.nn.GroupNorm
-
-    def __init__(self, key, ch=64):
-        k = jax.random.split(key, 2)
-        self.n1 = gnorm(ch)
-        self.c1 = eqx.nn.Conv2d(ch, ch, 3, padding=1, key=k[0])
-        self.n2 = gnorm(ch)
-        self.c2 = eqx.nn.Conv2d(ch, ch, 3, padding=1, key=k[1])
-        self.n3 = gnorm(ch)
-
-    def __call__(self, x):
-        x = self.c1(jax.nn.relu(self.n1(x)))
-        x = self.c2(jax.nn.relu(self.n2(x)))
-        return self.n3(x)
-
-
 class HaltUnit(eqx.Module):
-    n: eqx.nn.GroupNorm
     lin: eqx.nn.Linear
     hmin: float = eqx.field(static=True)
 
-    def __init__(self, key, ch=64, hmin=1e-3):
-        self.n = gnorm(ch)
-        self.lin = eqx.nn.Linear(ch, 1, key=key)
+    def __init__(self, key, channels=1, hmin=1e-3):
+        self.lin = eqx.nn.Linear(channels, 1, key=key)
         self.hmin = hmin
 
-    def __call__(self, x):
-        pooled = jnp.mean(jax.nn.relu(self.n(x)), axis=(1, 2))
-        return jax.nn.softplus(self.lin(pooled))[0] + self.hmin  # (B,1) -> (B,)
-
-
-class Head(eqx.Module):
-    n: eqx.nn.GroupNorm
-    lin: eqx.nn.Linear
-
-    def __init__(self, key, ch=64):
-        self.n = gnorm(ch)
-        self.lin = eqx.nn.Linear(ch, 10, key=key)
-
-    def __call__(self, x):
-        return self.lin(jnp.mean(jax.nn.relu(self.n(x)), axis=(1, 2)))  # (10,)
+    def __call__(self, x):  # (C,H,W)
+        return jax.nn.softplus(self.lin(jnp.mean(x, axis=(1, 2))))[0] + self.hmin
 
 
 class ODEClassifier(eqx.Module):
-    encoder: Encoder
     ode: AITNeuralODE | NeuralODE
-    head: Head
+    head: eqx.nn.Linear
 
-    def __init__(self, key, model="ait", ch=64, t_max=5.0, eps=1e-3, tol=1e-3):
-        k = jax.random.split(key, 4)
-        self.encoder = Encoder(k[0], ch)
-        f = ConvField(k[1], ch)
+    def __init__(
+        self, key, model="ait", channels=1, nf=64, hw=28, t_max=1.0, eps=1e-3, tol=1e-3
+    ):
+        k = jax.random.split(key, 3)
+        f = ConvField(k[0], channels, nf)  # MISMO f para ambos
         if model == "ait":
             self.ode = AITNeuralODE(
-                f, HaltUnit(k[2], ch), t_max=t_max, eps=eps, tol=tol
+                f, HaltUnit(k[1], channels), t_max=t_max, eps=eps, tol=tol
             )
-        elif model == "node":
-            self.ode = NeuralODE(f, T=t_max, tol=tol)
         else:
-            raise ValueError(model)
-        self.head = Head(k[3], ch)
+            self.ode = NeuralODE(f, T=t_max, tol=tol)
+        self.head = eqx.nn.Linear(channels * hw * hw, 10, key=k[2])  # flatten -> 10
 
-    def __call__(self, imgs):  # imgs: (B,1,28,28)
-        z = jax.vmap(self.encoder)(imgs)  # (B,64,6,6)
-        x_hat, T = self.ode(z)
-        logits = jax.vmap(self.head)(x_hat)  # (B,10)
-        return logits, T  # (B,10), (B,)
+    def __call__(self, imgs):  # (B,1,28,28)
+        x_out, T, nfe = self.ode(imgs)  # ODE directo sobre la imagen; vmap interno
+        logits = jax.vmap(lambda z: self.head(z.reshape(-1)))(x_out)
+        return logits, T, nfe
 
 
 def to_jax(xb, yb):
@@ -143,22 +98,26 @@ def main():
     @eqx.filter_jit
     def train_step(model, opt_state, x, y):
         def loss_fn(m):
-            logits, T = m(x)
+            logits, T, nfe = m(x)  # 3 salidas
             ce = optax.softmax_cross_entropy_with_integer_labels(logits, y).mean()
-            return ce + args.lam * T.mean(), T.mean()
+            return ce + args.lam * T.mean(), (T.mean(), nfe.mean())  # nfe como aux
 
-        (loss, T_mean), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
+        (loss, (T_mean, nfe_mean)), grads = eqx.filter_value_and_grad(
+            loss_fn, has_aux=True
+        )(model)
         updates, opt_state = optimizer.update(grads, opt_state)
-        return eqx.apply_updates(model, updates), opt_state, loss, T_mean
+        return eqx.apply_updates(model, updates), opt_state, loss, T_mean, nfe_mean
 
     @eqx.filter_jit
     def eval_batch(model, x):
-        logits, T = model(x)
-        return logits.argmax(1), T.sum()
+        logits, T, nfe = model(x)
+        return logits.argmax(1), T.sum(), nfe.sum()
 
     def run_experiment(run_idx):
         key = jax.random.PRNGKey(args.seed + run_idx)
         model = ODEClassifier(key, model=args.model, t_max=args.t_max)
+        n_params = sum(p.size for p in eqx.filter(model, eqx.is_array))
+        print(f"Run {run_idx} | model {args.model} | params {n_params}")
         opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
         train_loader, test_loader = get_loaders(
             args.batch_size, args.subset, seed=args.seed + run_idx
@@ -166,22 +125,27 @@ def main():
         rows = []
         for epoch in range(args.epochs):
             t0 = time.time()
-            run_loss = run_T = 0.0
+            run_loss = run_T = run_nfe = 0.0
             for xb, yb in train_loader:
                 x, y = to_jax(xb, yb)
-                model, opt_state, loss, T_mean = train_step(model, opt_state, x, y)
+                model, opt_state, loss, T_mean, nfe_mean = train_step(
+                    model, opt_state, x, y
+                )
                 run_loss += float(loss)
                 run_T += float(T_mean)
+                run_nfe += float(nfe_mean)
             n = len(train_loader)
 
             correct = total = 0
             T_sum = 0.0
+            nfe_sum = 0.0
             for xb, yb in test_loader:
                 x, y = to_jax(xb, yb)
-                pred, Tsum = eval_batch(model, x)
+                pred, Tsum, nfest = eval_batch(model, x)
                 correct += int((pred == y).sum())
                 total += y.shape[0]
                 T_sum += float(Tsum)
+                nfe_sum += float(nfest)
 
             rows.append(
                 dict(
@@ -192,6 +156,8 @@ def main():
                     train_T=run_T / n,
                     test_acc=correct / total,
                     test_T=T_sum / total,
+                    train_nfe=run_nfe / n,
+                    test_nfe=nfe_sum / total,
                     epoch_time_s=round(time.time() - t0, 2),
                 )
             )

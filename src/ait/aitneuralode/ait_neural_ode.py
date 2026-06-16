@@ -4,10 +4,12 @@ import equinox as eqx
 import optimistix as optx
 import diffrax as dfx
 
+from ..odefn import ODEFn
+
 
 class AITNeuralODE(eqx.Module):
-    f: eqx.Module
-    h: eqx.Module
+    f: ODEFn
+    h: ODEFn
     t_max: float = eqx.field(static=True)
     eps: float = eqx.field(static=True)
     tol: float = eqx.field(static=True)
@@ -43,7 +45,8 @@ class AITNeuralODE(eqx.Module):
             max_steps=self.max_steps,
         )
         xT, AT, xbarT = sol.ys[0][-1], sol.ys[1][-1], sol.ys[2][-1]
-        return xbarT + (1.0 - AT) * xT, sol.ts[-1]
+        nfe = sol.stats["num_steps"]
+        return xbarT + (1.0 - AT) * xT, sol.ts[-1], nfe
 
     def __call__(self, x):
         return jax.vmap(self._solve_one)(x)

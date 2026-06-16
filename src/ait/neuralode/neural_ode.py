@@ -1,12 +1,12 @@
 import jax
-import jax.numpy as jnp
 import equinox as eqx
-import optimistix as optx
 import diffrax as dfx
+
+from ..odefn import ODEFn
 
 
 class NeuralODE(eqx.Module):
-    f: eqx.Module
+    f: ODEFn
     T: float = eqx.field(static=True)
     tol: float = eqx.field(static=True)
     dt0: float = eqx.field(static=True)
@@ -31,9 +31,8 @@ class NeuralODE(eqx.Module):
             stepsize_controller=dfx.PIDController(rtol=self.tol, atol=self.tol),
             max_steps=self.max_steps,
         )
-        return sol.ys[-1]
+        nfe = sol.stats["num_steps"]
+        return sol.ys[-1], self.T, nfe
 
     def __call__(self, x):  # x: (B, *shape)
-        x_T = jax.vmap(self._solve_one)(x)
-        T_star = jnp.full((x.shape[0],), self.T)  # constante -> firma unificada
-        return x_T, T_star
+        return jax.vmap(self._solve_one)(x)
