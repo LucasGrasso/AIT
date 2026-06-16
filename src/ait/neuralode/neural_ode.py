@@ -31,8 +31,7 @@ class NeuralODE(eqx.Module):
             stepsize_controller=dfx.PIDController(rtol=self.tol, atol=self.tol),
             max_steps=self.max_steps,
         )
-        nfe = sol.stats["num_steps"]
-        return sol.ys[-1], self.T, nfe
+        return sol.ys[-1], self.T
 
     def __call__(self, x):  # x: (B, *shape)
         return jax.vmap(self._solve_one)(x)

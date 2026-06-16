@@ -1,27 +1,29 @@
 """
-uv run python -m experiments.mnist.mnist --model ait  --epochs 5 --batch-size 128 --lam 0.00001 --t-max 1.0 --seed 42
-uv run python -m experiments.mnist.mnist --model node --epochs 5 --batch-size 128 --lam 0.0 --t-max 1.0 --seed 42
+uv run python -m experiments.mnist.mnist --model ait  --epochs 15 --lam 0.0001 --runs 3
+uv run python -m experiments.mnist.mnist --model node --epochs 15 --lam 0.0    --runs 3
 """
 
 import os
-import argparse
-import time
-import csv
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import optax
 
 from ait import AITNeuralODE, NeuralODE
-from utils import count_params
+from ..training import (
+    train_sweep,
+    save_csv,
+    base_parser,
+    config_from_args,
+    ce_loss,
+    accuracy,
+)
+from ..logger import get_logger
 
 from .data import get_loaders
 
 
 class ConvField(eqx.Module):
-    """(C,H,W)->(C,H,W). 1x1 -> 3x3 -> 1x1"""
-
     c1: eqx.nn.Conv2d
     c2: eqx.nn.Conv2d
     c3: eqx.nn.Conv2d
@@ -39,15 +41,23 @@ class ConvField(eqx.Module):
 
 
 class HaltUnit(eqx.Module):
+    conv: eqx.nn.Conv2d
     lin: eqx.nn.Linear
     hmin: float = eqx.field(static=True)
 
-    def __init__(self, key, channels=1, hmin=1e-3):
-        self.lin = eqx.nn.Linear(channels, 1, key=key)
+    def __init__(self, key, channels=1, hidden=8, hmin=1e-3, bias_init=1.0):
+        kc, kl = jax.random.split(key, 2)
+        self.conv = eqx.nn.Conv2d(channels, hidden, 3, padding=1, key=kc)
+        lin = eqx.nn.Linear(hidden, 1, key=kl)
+        # init bias
+        lin = eqx.tree_at(lambda l: l.bias, lin, jnp.array([bias_init]))
+        self.lin = lin
         self.hmin = hmin
 
-    def __call__(self, x):  # (C,H,W)
-        return jax.nn.softplus(self.lin(jnp.mean(x, axis=(1, 2))))[0] + self.hmin
+    def __call__(self, x):
+        feat = jax.nn.relu(self.conv(x))
+        pooled = jnp.mean(feat, axis=(1, 2))
+        return jax.nn.softplus(self.lin(pooled))[0] + self.hmin
 
 
 class ODEClassifier(eqx.Module):
@@ -58,141 +68,47 @@ class ODEClassifier(eqx.Module):
         self, key, model="ait", channels=1, nf=64, hw=28, t_max=1.0, eps=1e-3, tol=1e-3
     ):
         k = jax.random.split(key, 3)
-        f = ConvField(k[0], channels, nf)  # MISMO f para ambos
+        f = ConvField(k[0], channels, nf)
         if model == "ait":
             self.ode = AITNeuralODE(
                 f, HaltUnit(k[1], channels), t_max=t_max, eps=eps, tol=tol
             )
         else:
             self.ode = NeuralODE(f, T=t_max, tol=tol)
-        self.head = eqx.nn.Linear(channels * hw * hw, 10, key=k[2])  # flatten -> 10
+        self.head = eqx.nn.Linear(channels * hw * hw, 10, key=k[2])
 
     def __call__(self, imgs):  # (B,1,28,28)
-        x_out, T, nfe = self.ode(imgs)  # ODE directo sobre la imagen; vmap interno
+        x_out, T = self.ode(imgs)
         logits = jax.vmap(lambda z: self.head(z.reshape(-1)))(x_out)
-        return logits, T, nfe
-
-
-def to_jax(xb, yb):
-    return jnp.asarray(xb.numpy()), jnp.asarray(yb.numpy())
+        return logits, T
 
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--model", choices=["ait", "node"], default="ait")
-    p.add_argument("--epochs", type=int, default=3)
-    p.add_argument("--batch-size", type=int, default=128)
-    p.add_argument("--lr", type=float, default=1e-3)
-    p.add_argument("--lam", type=float, default=0.00001)
-    p.add_argument("--t-max", type=float, default=1.0)
-    p.add_argument("--subset", type=int, default=None)
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--runs", type=int, default=5)  # K
+    p = base_parser("MNIST AIT-NODE / NODE")
+    p.add_argument("--nf", type=int, default=64)
     args = p.parse_args()
 
-    print(f"jax devices: {jax.devices()}  model={args.model}  lambda={args.lam}")
-    key = jax.random.PRNGKey(args.seed)
-    model = ODEClassifier(key, model=args.model, t_max=args.t_max)
-    optimizer = optax.adam(args.lr)
-    opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
+    logger = get_logger("mnist")
+    logger.info(f"jax devices: {jax.devices()} | model={args.model} | lam={args.lam}")
 
-    @eqx.filter_jit
-    def train_step(model, opt_state, x, y):
-        def loss_fn(m):
-            logits, T, _ = m(x)
-            ce = optax.softmax_cross_entropy_with_integer_labels(logits, y).mean()
-            ponder_loss = args.lam * T.mean()
-            return ce + ponder_loss, (ce, ponder_loss)
+    def model_factory(key):
+        return ODEClassifier(key, model=args.model, nf=args.nf, t_max=args.t_max)
 
-        (
-            _,
-            (
-                task_loss,
-                ponder_loss,
-            ),
-        ), grads = eqx.filter_value_and_grad(
-            loss_fn, has_aux=True
-        )(model)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        return (
-            eqx.apply_updates(model, updates),
-            opt_state,
-            task_loss,
-            ponder_loss,
-        )
+    def loaders_factory(seed):
+        return get_loaders(args.batch_size, args.subset, seed=seed)
 
-    @eqx.filter_jit
-    def eval_batch(model, x, y):
-        logits, T, nfe = model(x)
-        ce = optax.softmax_cross_entropy_with_integer_labels(logits, y).sum()
-        return logits.argmax(1), ce, T.sum(), nfe.sum()
+    rows = train_sweep(
+        model_factory,
+        loaders_factory,
+        config_from_args(args),
+        task_loss_fn=ce_loss,
+        score_fn=accuracy,
+        logger=logger,
+    )
 
-    def run_experiment(run_idx):
-        key = jax.random.PRNGKey(args.seed + run_idx)
-        model = ODEClassifier(key, model=args.model, t_max=args.t_max)
-        print(
-            f"Run {run_idx} | model {args.model} | params {count_params.nparams(model)}"
-        )
-        opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
-        train_loader, test_loader = get_loaders(
-            args.batch_size, args.subset, seed=args.seed + run_idx
-        )
-        rows = []
-        for epoch in range(args.epochs):
-            t0 = time.time()
-            n = len(train_loader)
-            task_loss_acc = ponder_loss_acc = 0
-
-            for xb, yb in train_loader:
-                x, y = to_jax(xb, yb)
-                model, opt_state, task_loss, ponder_loss = train_step(
-                    model, opt_state, x, y
-                )
-                task_loss_acc += float(task_loss)
-                ponder_loss_acc += float(ponder_loss)
-
-            correct = total = 0
-            nfe_sum = test_task_acc = T_test_acc = 0.0
-            for xb, yb in test_loader:
-                x, y = to_jax(xb, yb)
-                pred, ce_b, Tsum, nfest = eval_batch(model, x, y)
-                correct += int((pred == y).sum())
-                total += y.shape[0]
-                test_task_acc += float(ce_b)
-                T_test_acc += float(Tsum)
-                nfe_sum += float(nfest)
-
-            d = dict(
-                run=run_idx,
-                model=args.model,
-                epoch=epoch,
-                task_loss=task_loss_acc / n,
-                ponder_loss=ponder_loss_acc / n,
-                test_acc=correct / total,
-                test_task_loss=test_task_acc / total,
-                test_t=T_test_acc / total,
-                test_nfe=nfe_sum / total,
-                epoch_time_s=round(time.time() - t0, 2),
-            )
-
-            rows.append(d)
-
-            print(
-                f"	ep {epoch:02d} | acc {correct/total:.4f} | test_loss {d['test_task_loss']:.4f}  nfe {d['test_nfe']:.2f}"
-            )
-        return rows
-
-    all_rows = []
-    for run_idx in range(args.runs):
-        print(f"=== run {run_idx + 1}/{args.runs} ===")
-        all_rows.extend(run_experiment(run_idx))
-
-    out_path = os.path.join("results", f"{args.model}_mnist_{args.lam:.0e}.csv")
-    with open(out_path, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=list(all_rows[0].keys()))
-        w.writeheader()
-        w.writerows(all_rows)
-    print(f"Saved: {out_path}  ({len(all_rows)} rows)")
+    lam_str = f"{args.lam:.10f}".rstrip("0").rstrip(".")
+    out_path = os.path.join("results", f"{args.model}_mnist_{lam_str}.csv")
+    save_csv(rows, out_path, logger)
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ class AITNeuralODE(eqx.Module):
 
     def _solve_one(self, x0):
         state0 = (x0, jnp.zeros(()), jnp.zeros_like(x0))
-        event = dfx.Event(self._cond, optx.Bisection(rtol=1e-5, atol=1e-5))
+        event = dfx.Event(self._cond, optx.Newton(rtol=1e-5, atol=1e-5))
         sol = dfx.diffeqsolve(
             dfx.ODETerm(self._vector_field),
             dfx.Tsit5(),
@@ -45,8 +45,7 @@ class AITNeuralODE(eqx.Module):
             max_steps=self.max_steps,
         )
         xT, AT, xbarT = sol.ys[0][-1], sol.ys[1][-1], sol.ys[2][-1]
-        nfe = sol.stats["num_steps"]
-        return xbarT + (1.0 - AT) * xT, sol.ts[-1], nfe
+        return xbarT + (1.0 - AT) * xT, sol.ts[-1]
 
     def __call__(self, x):
         return jax.vmap(self._solve_one)(x)
