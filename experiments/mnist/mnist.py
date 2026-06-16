@@ -14,6 +14,7 @@ import equinox as eqx
 import optax
 
 from ait import AITNeuralODE, NeuralODE
+from utils import count_params
 
 from .data import get_loaders
 
@@ -116,8 +117,9 @@ def main():
     def run_experiment(run_idx):
         key = jax.random.PRNGKey(args.seed + run_idx)
         model = ODEClassifier(key, model=args.model, t_max=args.t_max)
-        n_params = sum(p.size for p in eqx.filter(model, eqx.is_array))
-        print(f"Run {run_idx} | model {args.model} | params {n_params}")
+        print(
+            f"Run {run_idx} | model {args.model} | params {count_params.nparams(model)}"
+        )
         opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
         train_loader, test_loader = get_loaders(
             args.batch_size, args.subset, seed=args.seed + run_idx
@@ -171,7 +173,7 @@ def main():
         print(f"=== run {run_idx + 1}/{args.runs} ===")
         all_rows.extend(run_experiment(run_idx))
 
-    out_path = os.path.join("results", f"{args.model}_mnist_{args.lam}.csv")
+    out_path = os.path.join("results", f"{args.model}_mnist_{args.lam:.0e}.csv")
     with open(out_path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(all_rows[0].keys()))
         w.writeheader()
