@@ -24,8 +24,8 @@ class AITNeuralODE(eqx.Module):
         hx = jnp.reshape(self.h(x), ())
         return (self.f(x), hx, hx * x)  # dz/dt = [f, h, h·x]
 
-    def _cond(self, t, state, args, **kwargs):
-        return (1.0 - self.eps) - state[1]
+    def _cond(self, t, y, args, **kwargs):
+        return (1.0 - self.eps) - y[1]
 
     def _solve_one(self, x0):
         state0 = (x0, jnp.zeros(()), jnp.zeros_like(x0))
