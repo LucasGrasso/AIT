@@ -21,5 +21,5 @@ def get_loaders(batch_size, subset=None, seed=0, root=".data/mnist"):
     g = torch.Generator().manual_seed(seed)
     return (
         DataLoader(train, batch_size, shuffle=True, drop_last=True, generator=g),
-        DataLoader(test, batch_size, shuffle=False, drop_last=True),
+        DataLoader(test, batch_size, shuffle=False, drop_last=False),
     )

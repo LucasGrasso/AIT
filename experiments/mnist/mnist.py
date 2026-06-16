@@ -99,20 +99,33 @@ def main():
     @eqx.filter_jit
     def train_step(model, opt_state, x, y):
         def loss_fn(m):
-            logits, T, nfe = m(x)  # 3 salidas
+            logits, T, _ = m(x)
             ce = optax.softmax_cross_entropy_with_integer_labels(logits, y).mean()
-            return ce + args.lam * T.mean(), (T.mean(), nfe.mean())  # nfe como aux
+            ponder_loss = args.lam * T.mean()
+            return ce + ponder_loss, (ce, ponder_loss)
 
-        (loss, (T_mean, nfe_mean)), grads = eqx.filter_value_and_grad(
+        (
+            _,
+            (
+                task_loss,
+                ponder_loss,
+            ),
+        ), grads = eqx.filter_value_and_grad(
             loss_fn, has_aux=True
         )(model)
         updates, opt_state = optimizer.update(grads, opt_state)
-        return eqx.apply_updates(model, updates), opt_state, loss, T_mean, nfe_mean
+        return (
+            eqx.apply_updates(model, updates),
+            opt_state,
+            task_loss,
+            ponder_loss,
+        )
 
     @eqx.filter_jit
-    def eval_batch(model, x):
+    def eval_batch(model, x, y):
         logits, T, nfe = model(x)
-        return logits.argmax(1), T.sum(), nfe.sum()
+        ce = optax.softmax_cross_entropy_with_integer_labels(logits, y).sum()
+        return logits.argmax(1), ce, T.sum(), nfe.sum()
 
     def run_experiment(run_idx):
         key = jax.random.PRNGKey(args.seed + run_idx)
@@ -127,44 +140,45 @@ def main():
         rows = []
         for epoch in range(args.epochs):
             t0 = time.time()
-            run_loss = run_T = run_nfe = 0.0
+            n = len(train_loader)
+            task_loss_acc = ponder_loss_acc = 0
+
             for xb, yb in train_loader:
                 x, y = to_jax(xb, yb)
-                model, opt_state, loss, T_mean, nfe_mean = train_step(
+                model, opt_state, task_loss, ponder_loss = train_step(
                     model, opt_state, x, y
                 )
-                run_loss += float(loss)
-                run_T += float(T_mean)
-                run_nfe += float(nfe_mean)
-            n = len(train_loader)
+                task_loss_acc += float(task_loss)
+                ponder_loss_acc += float(ponder_loss)
 
             correct = total = 0
-            T_sum = 0.0
-            nfe_sum = 0.0
+            nfe_sum = test_task_acc = T_test_acc = 0.0
             for xb, yb in test_loader:
                 x, y = to_jax(xb, yb)
-                pred, Tsum, nfest = eval_batch(model, x)
+                pred, ce_b, Tsum, nfest = eval_batch(model, x, y)
                 correct += int((pred == y).sum())
                 total += y.shape[0]
-                T_sum += float(Tsum)
+                test_task_acc += float(ce_b)
+                T_test_acc += float(Tsum)
                 nfe_sum += float(nfest)
 
-            rows.append(
-                dict(
-                    run=run_idx,
-                    model=args.model,
-                    epoch=epoch,
-                    train_loss=run_loss / n,
-                    train_T=run_T / n,
-                    test_acc=correct / total,
-                    test_T=T_sum / total,
-                    train_nfe=run_nfe / n,
-                    test_nfe=nfe_sum / total,
-                    epoch_time_s=round(time.time() - t0, 2),
-                )
+            d = dict(
+                run=run_idx,
+                model=args.model,
+                epoch=epoch,
+                task_loss=task_loss_acc / n,
+                ponder_loss=ponder_loss_acc / n,
+                test_acc=correct / total,
+                test_task_loss=test_task_acc / total,
+                test_t=T_test_acc / total,
+                test_nfe=nfe_sum / total,
+                epoch_time_s=round(time.time() - t0, 2),
             )
+
+            rows.append(d)
+
             print(
-                f"  run {run_idx} ep {epoch:02d} | acc {correct/total:.4f} | T* {T_sum/total:.3f}"
+                f"	ep {epoch:02d} | acc {correct/total:.4f} | test_loss {d['test_task_loss']:.4f}  nfe {d['test_nfe']:.2f}"
             )
         return rows
 
