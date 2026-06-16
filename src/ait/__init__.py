@@ -1,2 +1,2 @@
-from .aitneuralode import AITNeuralODE, AugDynamics
-from .neuralode import NeuralODE, _Field
+from .aitneuralode import AITNeuralODE
+from .neuralode import NeuralODE
