@@ -17,6 +17,11 @@ dependencies = [
     "torchvision>=0.27.0",
 ]
 
+[tool.uv]
+# Resolve and lock only for Linux; jax[cuda13] pulls in the CUDA 13 wheels,
+# which are Linux-only.
+environments = ["sys_platform == 'linux'"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
