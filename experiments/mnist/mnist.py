@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from ait import AITNeuralODE, NeuralODE
+from ait import AITNeuralODE, NeuralODE, HaltingUnit, ODEFn
 from ..training import (
     train_sweep,
     save_csv,
@@ -23,7 +23,7 @@ from ..logger import get_logger
 from .data import get_loaders
 
 
-class ConvField(eqx.Module):
+class ConvField(ODEFn):
     c1: eqx.nn.Conv2d
     c2: eqx.nn.Conv2d
     c3: eqx.nn.Conv2d
@@ -40,24 +40,23 @@ class ConvField(eqx.Module):
         return self.c3(x)
 
 
-class HaltUnit(eqx.Module):
+class HaltUnit(HaltingUnit):
     conv: eqx.nn.Conv2d
     lin: eqx.nn.Linear
-    hmin: float = eqx.field(static=True)
 
-    def __init__(self, key, channels=1, hidden=8, hmin=1e-3, bias_init=1.0):
+    def __init__(self, key, channels=1, hidden=8, initial_bias=1.0, h_min=1.0):
         kc, kl = jax.random.split(key, 2)
         self.conv = eqx.nn.Conv2d(channels, hidden, 3, padding=1, key=kc)
         lin = eqx.nn.Linear(hidden, 1, key=kl)
         # init bias
-        lin = eqx.tree_at(lambda l: l.bias, lin, jnp.array([bias_init]))
+        lin = eqx.tree_at(lambda l: l.bias, lin, jnp.array([initial_bias]))
         self.lin = lin
-        self.hmin = hmin
+        super().__init__(h_min)
 
     def __call__(self, x):
         feat = jax.nn.relu(self.conv(x))
         pooled = jnp.mean(feat, axis=(1, 2))
-        return jax.nn.softplus(self.lin(pooled))[0] + self.hmin
+        return jax.nn.softplus(self.lin(pooled))[0] + self.h_min
 
 
 class ODEClassifier(eqx.Module):
@@ -65,13 +64,13 @@ class ODEClassifier(eqx.Module):
     head: eqx.nn.Linear
 
     def __init__(
-        self, key, model="ait", channels=1, nf=64, hw=28, t_max=1.0, eps=1e-3, tol=1e-3
+        self, key, model="ait", channels=1, nf=64, hw=28, t_max=1.0, tol=1e-3
     ):
         k = jax.random.split(key, 3)
         f = ConvField(k[0], channels, nf)
         if model == "ait":
             self.ode = AITNeuralODE(
-                f, HaltUnit(k[1], channels), t_max=t_max, eps=eps, tol=tol
+                f, HaltUnit(k[1], channels), t_max=t_max, tol=tol
             )
         else:
             self.ode = NeuralODE(f, T=t_max, tol=tol)
