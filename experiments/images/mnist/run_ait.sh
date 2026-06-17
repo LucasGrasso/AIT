@@ -8,7 +8,7 @@ lambdas=(0.0001 0.001 0.01)
 echo "=== Running AIT-NODE ==="
 for lam in "${lambdas[@]}"; do           
     echo "=== lambda = $lam ==="
-    uv run python -m experiments.mnist.mnist \
-        --model ait --epochs 10 --batch-size 128 \
+    uv run python -m experiments.images.mnist.mnist \
+        --model ait --epochs 50 --batch-size 128 \
         --lam "$lam" --t-max 1.0 --seed 42 --runs 2
 done
