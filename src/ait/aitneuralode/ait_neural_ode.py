@@ -5,13 +5,12 @@ import optimistix as optx
 import diffrax as dfx
 
 from ..odefn import ODEFn
-
+from .halting_unit import HaltingUnit
 
 class AITNeuralODE(eqx.Module):
     f: ODEFn
-    h: ODEFn
+    h: HaltingUnit
     t_max: float = eqx.field(static=True)
-    eps: float = eqx.field(static=True)
     tol: float = eqx.field(static=True)
     dt0: float = eqx.field(static=True)
     max_steps: int = eqx.field(static=True)
@@ -25,7 +24,6 @@ class AITNeuralODE(eqx.Module):
         f,
         h,
         t_max=5.0,
-        eps=1e-3,
         tol=1e-3,
         dt0=0.01,
         max_steps=4096,
@@ -33,7 +31,7 @@ class AITNeuralODE(eqx.Module):
         stepsize_controller=None,
     ):
         self.f, self.h = f, h
-        self.t_max, self.eps, self.tol = t_max, eps, tol
+        self.t_max, self.tol = t_max, tol
         self.dt0, self.max_steps = dt0, max_steps
         if solver is not None:
             self.solver = solver
@@ -46,7 +44,7 @@ class AITNeuralODE(eqx.Module):
         return (self.f(x), hx, hx * x)  # dz/dt = [f, h, h·x]
 
     def _cond(self, t, y, args, **kwargs):
-        return (1.0 - self.eps) - y[1]
+        return 1.0 - y[1]
 
     def _solve_one(self, x0):
         state0 = (x0, jnp.zeros(()), jnp.zeros_like(x0))
@@ -64,8 +62,7 @@ class AITNeuralODE(eqx.Module):
             max_steps=self.max_steps,
             throw=False
         )
-        xT, AT, xbarT = sol.ys[0][-1], sol.ys[1][-1], sol.ys[2][-1]
-        return xbarT + (1.0 - AT) * xT, sol.ts[-1]
+        return sol.ys[2][-1], sol.ts[-1]
 
     def __call__(self, x):
         return jax.vmap(self._solve_one)(x)
