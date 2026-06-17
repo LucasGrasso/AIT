@@ -1,6 +1,6 @@
 import equinox as eqx
 
-from ..odefn import ODEFn
+from .odefn import ODEFn
 
 
 class HaltingUnit(ODEFn):

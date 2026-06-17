@@ -4,8 +4,7 @@ import equinox as eqx
 import optimistix as optx
 import diffrax as dfx
 
-from ..odefn import ODEFn
-from .halting_unit import HaltingUnit
+from ..odefn import ODEFn, HaltingUnit
 
 class AITNeuralODE(eqx.Module):
     f: ODEFn

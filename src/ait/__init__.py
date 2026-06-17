@@ -1,3 +1,3 @@
-from .aitneuralode import AITNeuralODE, HaltingUnit
+from .aitneuralode import AITNeuralODE
 from .neuralode import NeuralODE
-from .odefn import OdeFn
+from .odefn import ODEFn, HaltingUnit
