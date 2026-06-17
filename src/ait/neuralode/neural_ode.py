@@ -48,7 +48,7 @@ class NeuralODE(eqx.Module):
             stepsize_controller=self.stepsize_controller,
             max_steps=self.max_steps,
         )
-        steps = sol.stats["num_f_evals"]
+        steps = sol.stats["num_steps"]
         return sol.ys[-1], self.T, steps
 
     def __call__(self, x):  # x: (B, *shape)
