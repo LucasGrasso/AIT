@@ -3,7 +3,7 @@
 # Adaptive Integration Time for Neural ODEs
 
 </div>
-<p align="center">Julia Implementation of the Adaptive Integration Time (AIT) algorithm for Neural ODEs.</p>
+<p align="center">Jax Implementation of the Adaptive Integration Time (AIT) algorithm for Neural ODEs.</p>
 
 ## Requirements
 
