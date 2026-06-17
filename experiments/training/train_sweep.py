@@ -21,7 +21,7 @@ def make_step_fns(optimizer, lam, task_loss_fn, score_fn):
     @eqx.filter_jit
     def train_step(model, opt_state, x, y):
         def loss_fn(m):
-            out, T = m(x)
+            out, T, _ = m(x)
             task = task_loss_fn(out, y)
             ponder = lam * T.mean()
             return task + ponder, (task, ponder)
@@ -34,10 +34,10 @@ def make_step_fns(optimizer, lam, task_loss_fn, score_fn):
 
     @eqx.filter_jit
     def eval_batch(model, x, y):
-        out, T = model(x)
+        out, T, steps = model(x)
         task_sum = task_loss_fn(out, y) * y.shape[0]
         score_sum, _ = score_fn(out, y)
-        return score_sum, task_sum, T.sum()
+        return score_sum, task_sum, T.sum(), steps.sum()
 
     return train_step, eval_batch
 
@@ -69,14 +69,15 @@ def _run_one(
         n = len(train_loader)
 
         score_acc = total = 0.0
-        task_eval = T_acc = 0.0
+        task_eval = T_acc = steps_acc = 0.0
         for xb, yb in test_loader:
             x, y = to_jax(xb, yb)
-            score_sum, task_sum, Ts = eval_batch(model, x, y)
+            score_sum, task_sum, Ts, steps = eval_batch(model, x, y)
             score_acc += float(score_sum)
             total += y.shape[0]
             task_eval += float(task_sum)
             T_acc += float(Ts)
+            steps_acc += float(steps)
 
         row = dict(
             run=run_idx,
@@ -87,6 +88,7 @@ def _run_one(
             ponder_loss=ponder_acc / n,
             test_score=score_acc / total,
             test_task_loss=task_eval / total,
+            test_steps=steps_acc / total,
             test_t=T_acc / total,
             epoch_time_s=round(time.time() - t0, 2),
         )

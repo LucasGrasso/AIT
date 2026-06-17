@@ -6,6 +6,7 @@ import diffrax as dfx
 
 from ..odefn import ODEFn, HaltingUnit
 
+
 class AITNeuralODE(eqx.Module):
     f: ODEFn
     h: HaltingUnit
@@ -59,9 +60,10 @@ class AITNeuralODE(eqx.Module):
             saveat=dfx.SaveAt(t1=True),
             stepsize_controller=self.stepsize_controller,
             max_steps=self.max_steps,
-            throw=False
+            throw=False,
         )
-        return sol.ys[2][-1], sol.ts[-1]
+        steps = sol.stats["num_steps"]
+        return sol.ys[2][-1], sol.ts[-1], steps
 
     def __call__(self, x):
         return jax.vmap(self._solve_one)(x)
