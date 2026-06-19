@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/resolve_experiment.sh"
 resolve_experiment "$@" || exit 1
 uv sync --no-dev
 
-lambdas=(0.0 0.0001 0.001 0.01)
+lambdas=(0.0001 0.001 0.01)
 
 echo "=== Running AIT-NODE: $module ==="
 for lam in "${lambdas[@]}"; do
