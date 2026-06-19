@@ -7,6 +7,11 @@ def nparams(model):
     return sum(x.size for x in leaves)
 
 
+def torch_seed(key):
+    """torch's DataLoader Generator wants a Python int, not a JAX key."""
+    return int(jax.random.randint(key, (), 0, 2**31 - 1))
+
+
 def train_sweep(model_factory, loaders_factory, config, trainer, logger):
     """Runs `config['runs']` trains with different seeds, same hyperparams.
 
@@ -15,14 +20,15 @@ def train_sweep(model_factory, loaders_factory, config, trainer, logger):
     trainer               -> Trainer instance
     config: dict{runs, seed, epochs, model}
     """
+    root = jax.random.PRNGKey(config["seed"])
     all_rows = []
     for run_idx in range(config["runs"]):
-        key = jax.random.PRNGKey(config["seed"] + run_idx)
-        model = model_factory(key)
+        model_key, data_key = jax.random.split(jax.random.fold_in(root, run_idx))
+        model = model_factory(model_key)
         logger.info(
             f"=== run {run_idx + 1}/{config['runs']} | params {nparams(model):,} ==="
         )
-        train_loader, test_loader = loaders_factory(config["seed"] + run_idx)
+        train_loader, test_loader = loaders_factory(torch_seed(data_key))
         _, rows = trainer.fit(
             model,
             train_loader,
