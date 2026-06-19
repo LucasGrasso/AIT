@@ -16,6 +16,6 @@ class ConvField(ODEFn):
         self.c3 = eqx.nn.Conv2d(nf, channels, 1, key=k[2])
 
     def __call__(self, x):
-        x = jax.nn.relu(self.c1(x))
-        x = jax.nn.relu(self.c2(x))
+        x = jax.nn.softplus(self.c1(x))
+        x = jax.nn.softplus(self.c2(x))
         return self.c3(x)

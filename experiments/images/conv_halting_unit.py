@@ -18,6 +18,6 @@ class ConvHaltUnit(HaltingUnit):
         super().__init__(h_min)
 
     def __call__(self, x):
-        feat = jax.nn.relu(self.conv(x))
+        feat = jax.nn.softplus(self.conv(x))
         pooled = jnp.mean(feat, axis=(1, 2))
         return jax.nn.softplus(self.lin(pooled))[0] + self.h_min
