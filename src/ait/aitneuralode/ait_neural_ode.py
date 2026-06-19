@@ -14,6 +14,8 @@ class AITNeuralODE(eqx.Module):
     tol: float = eqx.field(static=True)
     dt0: float = eqx.field(static=True)
     max_steps: int = eqx.field(static=True)
+    dense: bool = eqx.field(static=True)
+    save_interval: float = eqx.field(static=True)
     solver: dfx.AbstractSolver = eqx.field(static=True, default=dfx.Tsit5())
     stepsize_controller: dfx.AbstractStepSizeController = eqx.field(
         static=True, default=dfx.PIDController(rtol=1e-3, atol=1e-3)
@@ -27,12 +29,15 @@ class AITNeuralODE(eqx.Module):
         tol=1e-3,
         dt0=0.01,
         max_steps=4096,
+        dense=False,
+        save_interval=0.1,
         solver=None,
         stepsize_controller=None,
     ):
         self.f, self.h = f, h
         self.t_max, self.tol = t_max, tol
         self.dt0, self.max_steps = dt0, max_steps
+        self.dense, self.save_interval = dense, save_interval
         if solver is not None:
             self.solver = solver
         if stepsize_controller is not None:
@@ -46,6 +51,12 @@ class AITNeuralODE(eqx.Module):
     def _cond(self, t, y, args, **kwargs):
         return 1.0 - y[1]
 
+    def _saveat(self):
+        if self.dense:
+            ts = jnp.arange(0.0, self.t_max, self.save_interval)
+            return dfx.SaveAt(ts=ts, t1=True)
+        return dfx.SaveAt(t1=True)
+
     def _solve_one(self, x0):
         state0 = (x0, jnp.zeros(()), jnp.zeros_like(x0))
         event = dfx.Event(self._cond, optx.Newton(rtol=1e-5, atol=1e-5))
@@ -57,13 +68,16 @@ class AITNeuralODE(eqx.Module):
             dt0=self.dt0,
             y0=state0,
             event=event,
-            saveat=dfx.SaveAt(t1=True),
+            saveat=self._saveat(),
             stepsize_controller=self.stepsize_controller,
             max_steps=self.max_steps,
             throw=False,
         )
         assert sol.ys is not None and sol.ts is not None
         steps = sol.stats["num_steps"]
+        if self.dense:
+            # ys = (x, A, xbar) trajectories (n_save, *state); points past T* are inf
+            return sol.ys, sol.ts, steps
         return sol.ys[2][-1], sol.ts[-1], steps
 
     def __call__(self, x):
