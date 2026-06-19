@@ -12,6 +12,7 @@ def base_parser(description=""):
     p.add_argument("--subset", type=int, default=None)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--runs", type=int, default=3)
+    p.add_argument("--log-every", type=int, default=10)
     return p
 
 
@@ -23,4 +24,5 @@ def config_from_args(args):
         seed=args.seed,
         epochs=args.epochs,
         model=args.model,
+        log_every=args.log_every,
     )
