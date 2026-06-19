@@ -95,7 +95,7 @@ class Trainer:
             if epoch % self.log_every == 0 or epoch == epochs - 1:
                 elapsed = round(time.time() - t0, 2)
                 logger.info(
-                    f"ep {epoch:02d} | score {row['test_score']:.4f} "
+                    f"ep {epoch:02d} | score {row['test_score']:.4f} | task loss {row['test_task_loss']:.4f} "
                     f"| T* {row['test_t']:.3f} | {elapsed}s"
                 )
         return model, rows
