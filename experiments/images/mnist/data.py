@@ -6,7 +6,9 @@ from torch.utils.data import DataLoader, Subset
 MNIST_MEAN, MNIST_STD = 0.1307, 0.3081
 
 
-def get_loaders(batch_size, subset=None, seed=0, root=".data/mnist"):
+def get_loaders(
+    batch_size, subset=None, seed=0, root=".data/mnist", num_workers=4
+):
     tf = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -19,7 +21,25 @@ def get_loaders(batch_size, subset=None, seed=0, root=".data/mnist"):
         train = Subset(train, range(subset))
         test = Subset(test, range(min(subset, len(test))))
     g = torch.Generator().manual_seed(seed)
+    persistent = num_workers > 0
     return (
-        DataLoader(train, batch_size, shuffle=True, drop_last=True, generator=g),
-        DataLoader(test, batch_size, shuffle=False, drop_last=False),
+        DataLoader(
+            train,
+            batch_size,
+            shuffle=True,
+            drop_last=True,
+            generator=g,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=persistent,
+        ),
+        DataLoader(
+            test,
+            batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=persistent,
+        ),
     )

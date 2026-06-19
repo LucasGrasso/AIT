@@ -52,44 +52,44 @@ class Trainer:
         score_sum, _ = self.score_fn(out, y)
         return score_sum, task_sum, T.sum(), steps.sum()
 
-    def fit(self, model, train_loader, test_loader, epochs, model_name, run_idx, logger):
+    def fit(
+        self, model, train_loader, test_loader, epochs, model_name, run_idx, logger
+    ):
         opt_state = self.optimizer.init(eqx.filter(model, eqx.is_array))
         rows = []
         for epoch in range(epochs):
             t0 = time.time()
 
-            task_acc = ponder_acc = 0.0
+            task_acc = ponder_acc = jnp.array(0.0)
             for xb, yb in train_loader:
                 x, y = to_jax(xb, yb)
-                model, opt_state, task, ponder = self.train_step(
-                    model, opt_state, x, y
-                )
-                task_acc += float(task)
-                ponder_acc += float(ponder)
+                model, opt_state, task, ponder = self.train_step(model, opt_state, x, y)
+                task_acc = task_acc + task
+                ponder_acc = ponder_acc + ponder
             n = len(train_loader)
 
-            score_acc = total = 0.0
-            task_eval = T_acc = steps_acc = 0.0
+            total = 0
+            score_acc = task_eval = T_acc = steps_acc = jnp.array(0.0)
             for xb, yb in test_loader:
                 x, y = to_jax(xb, yb)
                 score_sum, task_sum, Ts, steps = self.eval_step(model, x, y)
-                score_acc += float(score_sum)
+                score_acc = score_acc + score_sum
+                task_eval = task_eval + task_sum
+                T_acc = T_acc + Ts
+                steps_acc = steps_acc + steps
                 total += y.shape[0]
-                task_eval += float(task_sum)
-                T_acc += float(Ts)
-                steps_acc += float(steps)
 
             row = dict(
                 run=run_idx,
                 model=model_name,
                 epoch=epoch,
                 lam=self.lam,
-                task_loss=task_acc / n,
-                ponder_loss=ponder_acc / n,
-                test_score=score_acc / total,
-                test_task_loss=task_eval / total,
-                test_steps=steps_acc / total,
-                test_t=T_acc / total,
+                task_loss=float(task_acc) / n,
+                ponder_loss=float(ponder_acc) / n,
+                test_score=float(score_acc) / total,
+                test_task_loss=float(task_eval) / total,
+                test_steps=float(steps_acc) / total,
+                test_t=float(T_acc) / total,
             )
             rows.append(row)
             if epoch % self.log_every == 0 or epoch == epochs - 1:
