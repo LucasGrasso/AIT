@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 
 import matplotlib.pyplot as plt
@@ -27,14 +28,17 @@ def series_order(key):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("csvs", nargs="+")
+    p.add_argument("experiment", help="e.g. annuli1d, mnist; globs {model}_{exp}_{lam}.csv")
+    p.add_argument("--results-dir", default="results")
     p.add_argument("--outdir", default="plots")
     args = p.parse_args()
 
     sns.set_style("whitegrid")
 
-    dfs = [load(path) for path in args.csvs]
-    data = pd.concat(dfs, ignore_index=True)
+    csvs = sorted(glob.glob(os.path.join(args.results_dir, f"*_{args.experiment}_*.csv")))
+    if not csvs:
+        raise SystemExit(f"no CSVs matching *_{args.experiment}_*.csv in {args.results_dir}")
+    data = pd.concat([load(path) for path in csvs], ignore_index=True)
 
     # mean across runs for each (model, lam, epoch)
     stats = data.groupby(["model", "lam", "epoch"], as_index=False).agg(
@@ -49,6 +53,9 @@ def main():
     )
     palette = sns.color_palette("colorblind", len(keys))
     color = dict(zip(keys, palette))
+    for key in keys:  # NODE is always black
+        if key[0] == "node":
+            color[key] = (0.0, 0.0, 0.0)
     label = {k: series_label(*k) for k in keys}
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
@@ -96,9 +103,7 @@ def main():
     fig.tight_layout(rect=(0, 0.07, 1, 1))
 
     os.makedirs(args.outdir, exist_ok=True)
-    dataset = os.path.basename(args.csvs[0]).split("_")[1]
-    tags = "-".join(f"{df['model'].iloc[0]}{df['lam'].iloc[0]}" for df in dfs)
-    out = os.path.join(args.outdir, f"{dataset}-{tags}.png")
+    out = os.path.join(args.outdir, f"{args.experiment}.png")
     fig.savefig(out, dpi=150)
     print(f"saved {out}")
 
