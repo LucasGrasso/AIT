@@ -10,12 +10,15 @@ class ImgODEClassifier(eqx.Module):
     ode: AITNeuralODE | NeuralODE
     head: eqx.nn.Linear
 
-    def __init__(self, key, model="ait", channels=1, nf=64, hw=28, t_max=1.0, tol=1e-3):
+    def __init__(self, key, model="ait", channels=1, nf=64, hw=28, t_max=1.0, tol=1e-3, time_dependent=True):
         k = jax.random.split(key, 3)
-        f = ConvField(k[0], channels, nf)
+        f = ConvField(k[0], channels, nf, time_dependent=time_dependent)
         if model == "ait":
             self.ode = AITNeuralODE(
-                f, ConvHaltUnit(k[1], channels), t_max=t_max, tol=tol
+                f,
+                ConvHaltUnit(k[1], channels, time_dependent=time_dependent),
+                t_max=t_max,
+                tol=tol,
             )
         else:
             self.ode = NeuralODE(f, T=t_max, tol=tol)

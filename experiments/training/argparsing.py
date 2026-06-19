@@ -9,6 +9,12 @@ def base_parser(description=""):
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--lam", type=float, default=1e-4)
     p.add_argument("--t-max", type=float, default=1.0)
+    p.add_argument(
+        "--time-dependent",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="concat t into the vector field input",
+    )
     p.add_argument("--subset", type=int, default=None)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--runs", type=int, default=3)

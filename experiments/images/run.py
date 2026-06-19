@@ -46,6 +46,7 @@ def main():
             nf=args.nf,
             hw=spec["hw"],
             t_max=args.t_max,
+            time_dependent=args.time_dependent,
         )
 
     def loaders_factory(seed):

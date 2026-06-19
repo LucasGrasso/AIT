@@ -40,8 +40,8 @@ class AITNeuralODE(eqx.Module):
 
     def _vector_field(self, t, state, args):
         x, A, xbar = state
-        hx = jnp.reshape(self.h(x), ())
-        return (self.f(x), hx, hx * x)  # dz/dt = [f, h, h·x]
+        hx = jnp.reshape(self.h(t, x), ())
+        return (self.f(t, x), hx, hx * x)  # dz/dt = [f, h, h·x]
 
     def _cond(self, t, y, args, **kwargs):
         return 1.0 - y[1]
@@ -62,6 +62,7 @@ class AITNeuralODE(eqx.Module):
             max_steps=self.max_steps,
             throw=False,
         )
+        assert sol.ys is not None and sol.ts is not None
         steps = sol.stats["num_steps"]
         return sol.ys[2][-1], sol.ts[-1], steps
 

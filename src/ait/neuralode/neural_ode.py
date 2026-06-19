@@ -34,7 +34,7 @@ class NeuralODE(eqx.Module):
             self.stepsize_controller = stepsize_controller
 
     def _vector_field(self, t, x, args):
-        return self.f(x)
+        return self.f(t, x)
 
     def _solve_one(self, x0):
         sol = dfx.diffeqsolve(
@@ -48,6 +48,7 @@ class NeuralODE(eqx.Module):
             stepsize_controller=self.stepsize_controller,
             max_steps=self.max_steps,
         )
+        assert sol.ys is not None
         steps = sol.stats["num_steps"]
         return sol.ys[-1], self.T, steps
 
