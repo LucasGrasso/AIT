@@ -22,6 +22,7 @@ def train_sweep(model_factory, loaders_factory, config, trainer, logger):
     """
     root = jax.random.PRNGKey(config["seed"])
     all_rows = []
+    models = []
     for run_idx in range(config["runs"]):
         model_key, data_key = jax.random.split(jax.random.fold_in(root, run_idx))
         model = model_factory(model_key)
@@ -29,7 +30,7 @@ def train_sweep(model_factory, loaders_factory, config, trainer, logger):
             f"=== run {run_idx + 1}/{config['runs']} | params {nparams(model):,} ==="
         )
         train_loader, test_loader = loaders_factory(torch_seed(data_key))
-        _, rows = trainer.fit(
+        model, rows = trainer.fit(
             model,
             train_loader,
             test_loader,
@@ -39,4 +40,5 @@ def train_sweep(model_factory, loaders_factory, config, trainer, logger):
             logger,
         )
         all_rows.extend(rows)
-    return all_rows
+        models.append(model)
+    return all_rows, models

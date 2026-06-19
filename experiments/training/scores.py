@@ -8,3 +8,8 @@ def accuracy(logits, y):
 
 def neg_mse_score(pred, y):
     return -jnp.sum((pred - y) ** 2), y.shape[0]
+
+
+def sign_accuracy(pred, y):
+    correct = (jnp.sign(pred) == jnp.sign(y)).sum()
+    return correct, y.shape[0]

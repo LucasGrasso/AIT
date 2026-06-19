@@ -68,7 +68,7 @@ def main():
         lam=args.lam,
         log_every=args.log_every,
     )
-    rows = train_sweep(
+    rows, _ = train_sweep(
         model_factory,
         loaders_factory,
         config_from_args(args),

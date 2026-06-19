@@ -8,3 +8,7 @@ def ce_loss(logits, y):
 
 def mse_loss(pred, y):
     return jnp.mean((pred - y) ** 2)
+
+
+def smooth_l1_loss(pred, y, delta=1.0):
+    return jnp.mean(optax.huber_loss(pred, y, delta=delta))
