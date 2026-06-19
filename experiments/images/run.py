@@ -1,4 +1,6 @@
 import os
+from dataclasses import dataclass
+from typing import Callable
 
 import jax
 import optax
@@ -19,9 +21,16 @@ from .mnist.data import get_loaders as mnist_loaders
 from .cifar.data import get_loaders as cifar_loaders
 
 
+@dataclass(frozen=True)
+class DatasetSpec:
+    channels: int
+    hw: int
+    get_loaders: Callable
+
+
 DATASETS = {
-    "mnist": dict(channels=1, hw=28, get_loaders=mnist_loaders),
-    "cifar": dict(channels=3, hw=32, get_loaders=cifar_loaders),
+    "mnist": DatasetSpec(channels=1, hw=28, get_loaders=mnist_loaders),
+    "cifar": DatasetSpec(channels=3, hw=32, get_loaders=cifar_loaders),
 }
 
 
@@ -42,15 +51,15 @@ def main():
         return ImgODEClassifier(
             key,
             model=args.model,
-            channels=spec["channels"],
+            channels=spec.channels,
             nf=args.nf,
-            hw=spec["hw"],
+            hw=spec.hw,
             t_max=args.t_max,
             time_dependent=args.time_dependent,
         )
 
     def loaders_factory(seed):
-        return spec["get_loaders"](args.batch_size, args.subset, seed=seed)
+        return spec.get_loaders(args.batch_size, args.subset, seed=seed)
 
     trainer = Trainer(
         optax.adam(args.lr),
