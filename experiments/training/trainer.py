@@ -90,12 +90,12 @@ class Trainer:
                 test_task_loss=task_eval / total,
                 test_steps=steps_acc / total,
                 test_t=T_acc / total,
-                epoch_time_s=round(time.time() - t0, 2),
             )
             rows.append(row)
             if epoch % self.log_every == 0 or epoch == epochs - 1:
+                elapsed = round(time.time() - t0, 2)
                 logger.info(
                     f"ep {epoch:02d} | score {row['test_score']:.4f} "
-                    f"| T* {row['test_t']:.3f} | {row['epoch_time_s']}s"
+                    f"| T* {row['test_t']:.3f} | {elapsed}s"
                 )
         return model, rows
