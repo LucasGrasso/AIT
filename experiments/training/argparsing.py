@@ -18,11 +18,8 @@ def base_parser(description=""):
 
 def config_from_args(args):
     return dict(
-        lr=args.lr,
-        lam=args.lam,
         runs=args.runs,
         seed=args.seed,
         epochs=args.epochs,
         model=args.model,
-        log_every=args.log_every,
     )

@@ -5,8 +5,8 @@ resolve_experiment() {
   fi
   case "$1" in
     mnist|cifar)
-		module="experiments.images.${1}.${1}"
-		ARGS=(--epochs 50 --batch-size 256 --t-max 1.0 --seed 42 --runs 5)
+		module="experiments.images.run"
+		ARGS=(--dataset "$1" --epochs 50 --batch-size 256 --t-max 1.0 --seed 42 --runs 5)
 		;;
     *)
       echo "Unknown experiment: $1" >&2

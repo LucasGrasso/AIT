@@ -9,23 +9,15 @@ CIFAR_STD = (0.2470, 0.2435, 0.2616)
 
 
 def get_loaders(batch_size, subset=None, seed=0, root=".data/cifar10"):
-    test_tf = transforms.Compose(
+    tf = transforms.Compose(
         [
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-        ]
-    )
-    train_tf = transforms.Compose(
-        [
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
         ]
     )
 
-    train = datasets.CIFAR10(root, train=True, download=True, transform=train_tf)
-    test = datasets.CIFAR10(root, train=False, download=True, transform=test_tf)
+    train = datasets.CIFAR10(root, train=True, download=True, transform=tf)
+    test = datasets.CIFAR10(root, train=False, download=True, transform=tf)
     if subset:
         train = Subset(train, range(subset))
         test = Subset(test, range(min(subset, len(test))))
