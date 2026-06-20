@@ -32,3 +32,15 @@ Alternatively, install into an existing environment with pip:
 ```bash
 pip install -e .
 ```
+
+## Reproduce the experiments:
+
+```bash
+# Make the scripts executable
+chmod +x experiments/run_ait.sh
+chmod +x experiments/run_node.sh
+
+# Run the experiments
+./experiments/run_ait.sh g2
+./experiments/run_node.sh g2
+```
