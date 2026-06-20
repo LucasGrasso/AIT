@@ -40,7 +40,7 @@ class NeuralODE(eqx.Module):
             self.stepsize_controller = stepsize_controller
 
     def _vector_field(self, t, x, args):
-        return self.f(t, x)
+        return self.f(t, x, args)
 
     def _saveat(self):
         if self.dense:
@@ -48,7 +48,7 @@ class NeuralODE(eqx.Module):
             return dfx.SaveAt(ts=ts, t1=True)
         return dfx.SaveAt(t1=True)
 
-    def _solve_one(self, x0):
+    def _solve_one(self, x0, args=None):
         sol = dfx.diffeqsolve(
             dfx.ODETerm(self._vector_field),
             self.solver,
@@ -56,6 +56,7 @@ class NeuralODE(eqx.Module):
             t1=self.T,
             dt0=self.dt0,
             y0=x0,
+            args=args,
             saveat=self._saveat(),
             stepsize_controller=self.stepsize_controller,
             max_steps=self.max_steps,
@@ -66,5 +67,7 @@ class NeuralODE(eqx.Module):
             return sol.ys, sol.ts, steps  # ys: (n_save, *state), ts: (n_save,)
         return sol.ys[-1], self.T, steps
 
-    def __call__(self, x):  # x: (B, *shape)
-        return jax.vmap(self._solve_one)(x)
+    def __call__(self, x, args=None):  # x: (B, *shape)
+        if args is None:
+            return jax.vmap(self._solve_one)(x)
+        return jax.vmap(self._solve_one)(x, args)

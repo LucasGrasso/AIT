@@ -19,7 +19,7 @@ class ConvField(ODEFn):
         self.c3 = eqx.nn.Conv2d(nf, channels, 1, key=k[2])
         self.time_dependent = time_dependent
 
-    def __call__(self, t, x):  # x: (C, H, W)
+    def __call__(self, t, x, args=None):  # x: (C, H, W)
         if self.time_dependent:
             tc = jnp.full((1, *x.shape[1:]), t, dtype=x.dtype)
             x = jnp.concatenate([x, tc], axis=0)

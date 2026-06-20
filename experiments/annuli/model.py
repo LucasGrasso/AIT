@@ -17,7 +17,7 @@ class MLPField(ODEFn):
         )
         self.time_dependent = time_dependent
 
-    def __call__(self, t, x):  # x: (dim,)
+    def __call__(self, t, x, args=None):  # x: (dim,)
         if self.time_dependent:
             x = jnp.concatenate([x, jnp.reshape(t, (1,)).astype(x.dtype)])
         return self.mlp(x)
@@ -33,7 +33,7 @@ class MLPHaltUnit(HaltingUnit):
         self.time_dependent = time_dependent
         super().__init__(h_min)
 
-    def __call__(self, t, x):  # x: (dim,)
+    def __call__(self, t, x, args=None):  # x: (dim,)
         if self.time_dependent:
             x = jnp.concatenate([x, jnp.reshape(t, (1,)).astype(x.dtype)])
         return jax.nn.softplus(self.mlp(x))[0] + self.h_min

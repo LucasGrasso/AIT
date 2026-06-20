@@ -22,7 +22,7 @@ class ConvHaltUnit(HaltingUnit):
         self.time_dependent = time_dependent
         super().__init__(h_min)
 
-    def __call__(self, t, x):  # x: (C, H, W)
+    def __call__(self, t, x, args=None):  # x: (C, H, W)
         if self.time_dependent:
             tc = jnp.full((1, *x.shape[1:]), t, dtype=x.dtype)
             x = jnp.concatenate([x, tc], axis=0)

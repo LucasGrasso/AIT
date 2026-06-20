@@ -45,8 +45,8 @@ class AITNeuralODE(eqx.Module):
 
     def _vector_field(self, t, state, args):
         x, A, xbar = state
-        hx = jnp.reshape(self.h(t, x), ())
-        return (self.f(t, x), hx, hx * x)  # dz/dt = [f, h, h·x]
+        hx = jnp.reshape(self.h(t, x, args), ())
+        return (self.f(t, x, args), hx, hx * x)  # dz/dt = [f, h, h·x]
 
     def _cond(self, t, y, args, **kwargs):
         return 1.0 - y[1]
@@ -57,7 +57,7 @@ class AITNeuralODE(eqx.Module):
             return dfx.SaveAt(ts=ts, t1=True)
         return dfx.SaveAt(t1=True)
 
-    def _solve_one(self, x0):
+    def _solve_one(self, x0, args=None):
         state0 = (x0, jnp.zeros(()), jnp.zeros_like(x0))
         event = dfx.Event(self._cond, optx.Newton(rtol=1e-5, atol=1e-5))
         sol = dfx.diffeqsolve(
@@ -67,6 +67,7 @@ class AITNeuralODE(eqx.Module):
             t1=self.t_max,
             dt0=self.dt0,
             y0=state0,
+            args=args,
             event=event,
             saveat=self._saveat(),
             stepsize_controller=self.stepsize_controller,
@@ -80,5 +81,7 @@ class AITNeuralODE(eqx.Module):
             return sol.ys, sol.ts, steps
         return sol.ys[2][-1], sol.ts[-1], steps
 
-    def __call__(self, x):
-        return jax.vmap(self._solve_one)(x)
+    def __call__(self, x, args=None):
+        if args is None:
+            return jax.vmap(self._solve_one)(x)
+        return jax.vmap(self._solve_one)(x, args)
