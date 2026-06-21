@@ -16,7 +16,7 @@ resolve_experiment() {
 		;;
     babi)
 		module="experiments.babi.babi"
-		ARGS=(--data-dir "${BABI_DIR:?set BABI_DIR to the bAbI en-10k dir}" --tasks 1 2 3 --epochs 50 --batch-size 256 --t-max 1.0 --d-model 128 --n-heads 8 --d-ff 512 --seed 42 --runs 5 --log-every 1)
+		ARGS=(--data-dir "${BABI_DIR:?set BABI_DIR to the bAbI en-10k dir}" --tasks 1 2 3 --epochs 50 --batch-size 256 --t-max 2.0 --d-model 128 --n-heads 8 --d-ff 512 --seed 42 --runs 5 --log-every 1)
 		lambdas=(0.0001 0.001)
 		;;
     *)
