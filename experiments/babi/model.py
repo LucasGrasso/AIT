@@ -67,8 +67,10 @@ class AttnField(ODEFn):
 class AttnHaltUnit(HaltingUnit):
     lin: eqx.nn.Linear
 
-    def __init__(self, key, d_model, h_min=1e-4):
-        self.lin = eqx.nn.Linear(d_model, 1, key=key)
+    def __init__(self, key, d_model, h_min=1e-4, init_bias=1.0):
+        lin = eqx.nn.Linear(d_model, 1, key=key)
+        lin = eqx.tree_at(lambda l: l.bias, lin, lambda b: jnp.full_like(b, init_bias))
+        self.lin = lin
         super().__init__(h_min)
 
     def __call__(self, t, x, args=None):  # x: (S, D) -> scalar; args: (S,) bool mask
@@ -99,6 +101,7 @@ class TokenODEClassifier(eqx.Module):
         d_ff=512,
         t_max=2.0,
         h_min=None,
+        init_bias=1.0,
     ):
         if h_min is None:
             h_min = 1.0 / t_max
@@ -106,7 +109,9 @@ class TokenODEClassifier(eqx.Module):
         self.embedder = Embedder(k[0], vocab, d_model)
         f = AttnField(k[1], d_model, n_heads, d_ff)
         if model == "ait":
-            self.ode = AITNeuralODE(f, AttnHaltUnit(k[2], d_model, h_min), t_max=t_max)
+            self.ode = AITNeuralODE(
+                f, AttnHaltUnit(k[2], d_model, h_min, init_bias), t_max=t_max
+            )
         else:
             self.ode = NeuralODE(f, T=t_max)
         self.head = eqx.nn.Linear(d_model, vocab, key=k[3])

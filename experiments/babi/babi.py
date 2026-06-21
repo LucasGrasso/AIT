@@ -33,6 +33,12 @@ def main():
         default=None,
         help="halting floor; default 1/t_max guarantees A=1 fires within [0, t_max]",
     )
+    p.add_argument(
+        "--init-bias",
+        type=float,
+        default=1.0,
+        help="initial bias on the halting linear so T* starts off the t_max ceiling",
+    )
     args = p.parse_args()
 
     h_min = args.h_min if args.h_min is not None else 1.0 / args.t_max
@@ -53,6 +59,7 @@ def main():
             d_ff=args.d_ff,
             t_max=args.t_max,
             h_min=h_min,
+            init_bias=args.init_bias,
         )
 
     def loaders_factory(seed):
@@ -91,6 +98,7 @@ def main():
         d_ff=args.d_ff,
         t_max=args.t_max,
         h_min=h_min,
+        init_bias=args.init_bias,
     )
     os.makedirs("models", exist_ok=True)
     ckpt = os.path.join("models", f"{tag}.eqx")
