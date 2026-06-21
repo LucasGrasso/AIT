@@ -34,7 +34,7 @@ def main():
         help="halting floor; default 1/t_max guarantees A=1 fires within [0, t_max]",
     )
     p.add_argument(
-        "--init-bias",
+        "--initial-bias",
         type=float,
         default=1.0,
         help="initial bias on the halting linear so T* starts off the t_max ceiling",
