@@ -59,7 +59,7 @@ def main():
             d_ff=args.d_ff,
             t_max=args.t_max,
             h_min=h_min,
-            init_bias=args.init_bias,
+            initial_bias=args.initial_bias,
         )
 
     def loaders_factory(seed):
@@ -98,7 +98,7 @@ def main():
         d_ff=args.d_ff,
         t_max=args.t_max,
         h_min=h_min,
-        init_bias=args.init_bias,
+        initial_bias=args.initial_bias,
     )
     os.makedirs("models", exist_ok=True)
     ckpt = os.path.join("models", f"{tag}.eqx")
