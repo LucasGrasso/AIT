@@ -5,10 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/resolve_experiment.sh"
 
 resolve_experiment "$@" || exit 1
-uv sync --no-dev
 
 echo "=== Running AIT-NODE: $module ==="
 for lam in "${lambdas[@]}"; do
   echo "=== lambda = $lam ==="
-  uv run python -m "$module" --model ait --lam "$lam" "${ARGS[@]}"
+  uv run --no-sync python -m "$module" --model ait --lam "$lam" "${ARGS[@]}"
 done

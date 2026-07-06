@@ -7,7 +7,7 @@ readme = "README.md"
 dependencies = [
     "diffrax>=0.7.2",
     "equinox>=0.13.8",
-    "jax[cuda13]>=0.10.1",
+    "jax>=0.10.1",
     "matplotlib>=3.11.0",
     "numpy>=2.4.6",
     "optax>=0.2.8",
@@ -17,10 +17,9 @@ dependencies = [
     "torchvision>=0.27.0",
 ]
 
-[tool.uv]
-# Resolve and lock only for Linux; jax[cuda13] pulls in the CUDA 13 wheels,
-# which are Linux-only.
-environments = ["sys_platform == 'linux'"]
+[project.optional-dependencies]
+# GPU support, opt-in: `uv sync --extra cuda`. See README for platform notes.
+cuda = ["jax[cuda13]>=0.10.1"]
 
 [build-system]
 requires = ["hatchling"]
