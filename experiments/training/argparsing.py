@@ -1,9 +1,9 @@
 import argparse
 
 
-def base_parser(description=""):
+def base_parser(description="", model_choices=("ait", "node")):
     p = argparse.ArgumentParser(description=description)
-    p.add_argument("--model", choices=["ait", "node"], default="ait")
+    p.add_argument("--model", choices=list(model_choices), default=model_choices[0])
     p.add_argument("--epochs", type=int, default=15)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--lr", type=float, default=1e-3)
