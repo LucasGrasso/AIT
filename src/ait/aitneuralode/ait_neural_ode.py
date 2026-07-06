@@ -5,6 +5,7 @@ import optimistix as optx
 import diffrax as dfx
 
 from ..odefn import ODEFn, HaltingUnit
+from ..readout import Readout
 
 
 class AITNeuralODE(eqx.Module):
@@ -16,6 +17,7 @@ class AITNeuralODE(eqx.Module):
     max_steps: int = eqx.field(static=True)
     dense: bool = eqx.field(static=True)
     save_interval: float = eqx.field(static=True)
+    readout: Readout = eqx.field(static=True, default=Readout.MEANFIELD)
     solver: dfx.AbstractSolver = eqx.field(static=True, default=dfx.Tsit5())
     stepsize_controller: dfx.AbstractStepSizeController = eqx.field(
         static=True, default=dfx.PIDController(rtol=1e-3, atol=1e-3)
@@ -31,6 +33,7 @@ class AITNeuralODE(eqx.Module):
         max_steps=4096,
         dense=False,
         save_interval=0.1,
+        readout=Readout.MEANFIELD,
         solver=None,
         stepsize_controller=None,
     ):
@@ -38,6 +41,7 @@ class AITNeuralODE(eqx.Module):
         self.t_max, self.tol = t_max, tol
         self.dt0, self.max_steps = dt0, max_steps
         self.dense, self.save_interval = dense, save_interval
+        self.readout = Readout(readout)
         if solver is not None:
             self.solver = solver
         if stepsize_controller is not None:
@@ -50,6 +54,11 @@ class AITNeuralODE(eqx.Module):
 
     def _cond(self, t, y, args, **kwargs):
         return 1.0 - y[1]
+
+    def _process_output_state(self, ys):
+        x, _, xbar = ys
+        final = xbar if self.readout is Readout.MEANFIELD else x
+        return final[-1]
 
     def _saveat(self):
         if self.dense:
@@ -79,7 +88,7 @@ class AITNeuralODE(eqx.Module):
         if self.dense:
             # ys = (x, A, xbar) trajectories (n_save, *state); points past T* are inf
             return sol.ys, sol.ts, steps
-        return sol.ys[2][-1], sol.ts[-1], steps
+        return self._process_output_state(sol.ys), sol.ts[-1], steps
 
     def __call__(self, x, args=None):
         if args is None:
