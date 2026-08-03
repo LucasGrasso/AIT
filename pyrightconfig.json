@@ -1,0 +1,8 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["src", "experiments", "scripts"],
+  "exclude": ["**/__pycache__", ".venv", ".data", "results", "models", "plots"],
+  "typeCheckingMode": "basic",
+  "reportMissingTypeStubs": false
+}
