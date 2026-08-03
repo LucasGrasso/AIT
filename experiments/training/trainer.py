@@ -1,5 +1,6 @@
 import time
 
+import jax
 import jax.numpy as jnp
 import equinox as eqx
 
@@ -15,6 +16,9 @@ class Trainer:
     score_fn(out, y)     -> (agg_sum, count)  addable over batches
     lam                  -> weight of the ponder penalty `lam * T.mean()`;
                             NODE runs pass lam=0.
+    args_fn(key, x)      -> extra per-batch argument for `model(x, args)`. None (the default) calls
+                            `model(x)`, so deterministic tasks are untouched and
+                            no PRNG state has to live inside the model.
     """
 
     def __init__(
@@ -24,17 +28,22 @@ class Trainer:
         score_fn,
         lam=0.0,
         log_every=10,
+        args_fn=None,
     ):
         self.optimizer = optimizer
         self.task_loss_fn = task_loss_fn
         self.score_fn = score_fn
         self.lam = lam
         self.log_every = log_every
+        self.args_fn = args_fn
+
+    def _call(self, m, x, key):
+        return m(x) if self.args_fn is None else m(x, self.args_fn(key, x))
 
     @eqx.filter_jit
-    def train_step(self, model, opt_state, x, y):
+    def train_step(self, model, opt_state, x, y, key=None):
         def loss_fn(m):
-            out, T, _ = m(x)
+            out, T, _ = self._call(m, x, key)
             task = self.task_loss_fn(out, y)
             ponder = self.lam * T.mean()
             return task + ponder, (task, ponder)
@@ -46,16 +55,29 @@ class Trainer:
         return eqx.apply_updates(model, updates), opt_state, task, ponder
 
     @eqx.filter_jit
-    def eval_step(self, model, x, y):
-        out, T, steps = model(x)
+    def eval_step(self, model, x, y, key=None):
+        out, T, steps = self._call(model, x, key)
         task_sum = self.task_loss_fn(out, y) * y.shape[0]
         score_sum, _ = self.score_fn(out, y)
         return score_sum, task_sum, T.sum(), steps.sum()
 
     def fit(
-        self, model, train_loader, test_loader, epochs, model_name, run_idx, logger
+        self,
+        model,
+        train_loader,
+        test_loader,
+        epochs,
+        model_name,
+        run_idx,
+        logger,
+        key=None,
     ):
         opt_state = self.optimizer.init(eqx.filter(model, eqx.is_array))
+        if self.args_fn is not None and key is None:
+            raise ValueError("Trainer(args_fn=...) needs a `key` to draw args from")
+        # eval reuses one fixed key every epoch so the score curve reflects the
+        # model improving, not the noise redrawing.
+        train_key, eval_key = (None, None) if key is None else jax.random.split(key)
         rows = []
         for epoch in range(epochs):
             t0 = time.time()
@@ -63,7 +85,12 @@ class Trainer:
             task_acc = ponder_acc = jnp.array(0.0)
             for xb, yb in train_loader:
                 x, y = to_jax(xb, yb)
-                model, opt_state, task, ponder = self.train_step(model, opt_state, x, y)
+                step_key = None
+                if train_key is not None:
+                    train_key, step_key = jax.random.split(train_key)
+                model, opt_state, task, ponder = self.train_step(
+                    model, opt_state, x, y, step_key
+                )
                 task_acc = task_acc + task
                 ponder_acc = ponder_acc + ponder
             n = len(train_loader)
@@ -72,7 +99,7 @@ class Trainer:
             score_acc = task_eval = T_acc = steps_acc = jnp.array(0.0)
             for xb, yb in test_loader:
                 x, y = to_jax(xb, yb)
-                score_sum, task_sum, Ts, steps = self.eval_step(model, x, y)
+                score_sum, task_sum, Ts, steps = self.eval_step(model, x, y, eval_key)
                 score_acc = score_acc + score_sum
                 task_eval = task_eval + task_sum
                 T_acc = T_acc + Ts

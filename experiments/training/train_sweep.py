@@ -24,7 +24,9 @@ def train_sweep(model_factory, loaders_factory, config, trainer, logger):
     all_rows = []
     models = []
     for run_idx in range(config["runs"]):
-        model_key, data_key = jax.random.split(jax.random.fold_in(root, run_idx))
+        model_key, data_key, train_key = jax.random.split(
+            jax.random.fold_in(root, run_idx), 3
+        )
         model = model_factory(model_key)
         logger.info(
             f"=== run {run_idx + 1}/{config['runs']} | params {nparams(model):,} ==="
@@ -38,6 +40,7 @@ def train_sweep(model_factory, loaders_factory, config, trainer, logger):
             config["model"],
             run_idx,
             logger,
+            key=train_key,
         )
         all_rows.extend(rows)
         models.append(model)
