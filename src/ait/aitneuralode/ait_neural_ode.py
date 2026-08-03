@@ -17,9 +17,9 @@ class AITNeuralODE(eqx.Module):
     max_steps: int = eqx.field(static=True)
     dense: bool = eqx.field(static=True)
     save_interval: float = eqx.field(static=True)
+    stepsize_controller: dfx.AbstractStepSizeController = eqx.field(static=True)
     readout: Readout = eqx.field(static=True, default=Readout.MEANFIELD)
     solver: dfx.AbstractSolver = eqx.field(static=True, default=dfx.Tsit5())
-    stepsize_controller: dfx.AbstractStepSizeController = eqx.field(static=True)
 
     def __init__(
         self,

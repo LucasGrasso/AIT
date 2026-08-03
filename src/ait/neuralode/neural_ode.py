@@ -14,8 +14,8 @@ class NeuralODE(eqx.Module):
     max_steps: int = eqx.field(static=True)
     dense: bool = eqx.field(static=True)
     save_interval: float = eqx.field(static=True)
-    solver: dfx.AbstractSolver = eqx.field(static=True, default=dfx.Tsit5())
     stepsize_controller: dfx.AbstractStepSizeController = eqx.field(static=True)
+    solver: dfx.AbstractSolver = eqx.field(static=True, default=dfx.Tsit5())
 
     def __init__(
         self,
