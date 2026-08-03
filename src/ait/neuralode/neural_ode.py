@@ -15,15 +15,13 @@ class NeuralODE(eqx.Module):
     dense: bool = eqx.field(static=True)
     save_interval: float = eqx.field(static=True)
     solver: dfx.AbstractSolver = eqx.field(static=True, default=dfx.Tsit5())
-    stepsize_controller: dfx.AbstractStepSizeController = eqx.field(
-        static=True, default=dfx.PIDController(rtol=1e-3, atol=1e-3)
-    )
+    stepsize_controller: dfx.AbstractStepSizeController = eqx.field(static=True)
 
     def __init__(
         self,
         f,
         T=5.0,
-        tol=1e-3,
+        tol=1e-5,
         dt0=0.01,
         max_steps=4096,
         dense=False,
@@ -38,6 +36,8 @@ class NeuralODE(eqx.Module):
             self.solver = solver
         if stepsize_controller is not None:
             self.stepsize_controller = stepsize_controller
+        else:
+            self.stepsize_controller = dfx.PIDController(rtol=tol, atol=tol)
 
     def _vector_field(self, t, x, args):
         return self.f(t, x, args)
