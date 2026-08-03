@@ -1,7 +1,19 @@
+"""AIT halting-time / solver-step maps over the input plane, across lambdas.
+
+Works for any 2D task: a task supplies how to rebuild its checkpoints, what to
+scatter on top, and how far out the interesting region goes. Register a new one
+in TASKS below.
+
+    uv run --no-sync python -m scripts.plot_halting_map annuli2d
+    uv run --no-sync python -m scripts.plot_halting_map cnf_8gaussians
+"""
+
 import argparse
 import glob
 import math
 import os
+from dataclasses import dataclass
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -9,12 +21,54 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from experiments.training import load_model
-from experiments.annuli.model import VecODEModel
-from experiments.annuli.data import gd
 
 
-def build(**hp):
-    return VecODEModel(jax.random.PRNGKey(0), **hp)
+@dataclass(frozen=True)
+class Task2D:
+    """How to render halting maps for one family of 2D checkpoints.
+
+    build    -- (**hyperparams) -> model, matching `load_model`'s contract
+    samples  -- () -> (points (N, 2), colours (N,) or None) drawn over each map
+    extent   -- half-width of the square grid to evaluate on
+    contour  -- draw the model's zero level set; only meaningful where the
+                first output is a decision function, not e.g. a log-density
+    """
+
+    build: Callable[..., object]
+    samples: Callable[[], tuple[np.ndarray, np.ndarray | None]]
+    extent: float
+    contour: bool
+
+
+def _annuli_task(_experiment):  # one spec covers annuli1d/2d/...
+    from experiments.annuli.model import VecODEModel
+    from experiments.annuli.data import gd
+
+    def samples():
+        x, y = gd(800, 800, d=2)
+        return np.asarray(x), np.asarray(y).ravel()
+
+    return Task2D(
+        build=lambda **hp: VecODEModel(jax.random.PRNGKey(0), **hp),
+        samples=samples,
+        extent=2.0,
+        contour=True,  # first output is the classifier margin
+    )
+
+
+TASKS = {"annuli": _annuli_task}
+
+
+def resolve_task(experiment, name=None):
+    """`--task` if given, else the leading word of the experiment tag."""
+    if name is None:
+        name = next((k for k in TASKS if experiment.startswith(k)), None)
+    if name not in TASKS:
+        raise SystemExit(
+            f"cannot resolve a task for {experiment!r}; pass --task "
+            f"{{{','.join(TASKS)}}}"
+        )
+    return TASKS[name](experiment)
 
 
 def lam_of(path, experiment):
@@ -28,19 +82,28 @@ def eval_grid(model, res, extent):
     grid = jnp.stack([xx.ravel(), yy.ravel()], axis=1)
     pred, T, steps = model(grid)
     r = lambda a: np.asarray(a).reshape(res, res)
-    return np.asarray(xx), np.asarray(yy), r(pred), r(T), r(steps)
+    # T and steps are per-sample for AIT but scalars for a fixed-T NODE
+    b = lambda a: np.broadcast_to(np.asarray(a), (res * res,))
+    return np.asarray(xx), np.asarray(yy), r(pred), r(b(T)), r(b(steps))
 
 
 def main():
     p = argparse.ArgumentParser(
         description="AIT halting-time / steps maps across lambdas"
     )
-    p.add_argument("experiment", help="e.g. annuli2d; globs models/ait_<exp>_<lam>.eqx")
+    p.add_argument(
+        "experiment",
+        help="e.g. annuli2d. globs models/ait_<exp>_<lam>.eqx",
+    )
+    p.add_argument("--task", choices=sorted(TASKS), default=None)
     p.add_argument("--models-dir", default="models")
     p.add_argument("--outdir", default="plots")
     p.add_argument("--res", type=int, default=200)
-    p.add_argument("--extent", type=float, default=2.0)
+    p.add_argument("--extent", type=float, default=None, help="default: per task")
     args = p.parse_args()
+
+    task = resolve_task(args.experiment, args.task)
+    extent = task.extent if args.extent is None else args.extent
 
     ckpts = sorted(
         glob.glob(os.path.join(args.models_dir, f"ait_{args.experiment}_*.eqx")),
@@ -51,15 +114,14 @@ def main():
             f"no checkpoints ait_{args.experiment}_*.eqx in {args.models_dir}"
         )
 
-    x, y = gd(800, 800, d=2)
-    y = y.ravel()
+    x, colours = task.samples()
 
     results = []  # (lam, xx, yy, pred, T, steps)
     for ck in ckpts:
-        model, hp = load_model(ck, build)
+        model, hp = load_model(ck, task.build)
         if hp["dim"] != 2:
             raise SystemExit(f"halting map needs dim=2 models, got dim={hp['dim']}")
-        xx, yy, pred, T, steps = eval_grid(model, args.res, args.extent)
+        xx, yy, pred, T, steps = eval_grid(model, args.res, extent)
         results.append((lam_of(ck, args.experiment), xx, yy, pred, T, steps))
 
     n = len(results)
@@ -95,10 +157,19 @@ def main():
             xx, yy, steps, shading="auto", cmap="viridis", vmin=svmin, vmax=svmax
         )
         for ax in (ax_t, ax_s):
-            ax.contour(xx, yy, pred, levels=[0.0], colors="white", linewidths=1.2)
+            if task.contour:
+                ax.contour(xx, yy, pred, levels=[0.0], colors="white", linewidths=1.2)
             ax.scatter(
-                x[:, 0], x[:, 1], c=y, cmap="coolwarm", s=3, alpha=0.3, linewidths=0
+                x[:, 0],
+                x[:, 1],
+                c="white" if colours is None else colours,
+                cmap=None if colours is None else "coolwarm",
+                s=3,
+                alpha=0.3,
+                linewidths=0,
             )
+            ax.set_xlim(-extent, extent)
+            ax.set_ylim(-extent, extent)
             ax.set_title(f"$\\lambda={lam:g}$")
             ax.set_aspect("equal")
             ax.set_xticks([])
@@ -117,7 +188,7 @@ def main():
     )
     fig.colorbar(
         pcm_s,
-        ax=axes[:, sep + 1:].ravel().tolist(),
+        ax=axes[:, sep + 1 :].ravel().tolist(),
         location="right",
         label="solver steps",
     )
