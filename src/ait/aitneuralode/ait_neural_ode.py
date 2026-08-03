@@ -50,7 +50,10 @@ class AITNeuralODE(eqx.Module):
     def _vector_field(self, t, state, args):
         x, A, xbar = state
         hx = jnp.reshape(self.h(t, x, args), ())
-        return (self.f(t, x, args), hx, hx * x)  # dz/dt = [f, h, h·x]
+        dxbar = (
+            hx * x if self.readout is Readout.MEANFIELD else jnp.zeros_like(x)
+        )  # null out xbar if not meanfield
+        return (self.f(t, x, args), hx, dxbar)  # dz/dt = [f, h, h·x]
 
     def _cond(self, t, y, args, **kwargs):
         return 1.0 - y[1]
