@@ -56,7 +56,26 @@ def _annuli_task(_experiment):  # one spec covers annuli1d/2d/...
     )
 
 
-TASKS = {"annuli": _annuli_task}
+def _cnf_task(experiment):
+    from experiments.cnf.model import CNFModel
+    from experiments.cnf.data import generate
+
+    toy = experiment.split("_", 1)[1] if "_" in experiment else "checkerboard"
+
+    def build(**hp):
+        # force the exact trace: the map is a picture, and evaluating it needs
+        # no eps, which `model(grid)` has no way to supply.
+        return CNFModel(jax.random.PRNGKey(0), **{**hp, "hutchinson": False})
+
+    return Task2D(
+        build=build,
+        samples=lambda: (generate(toy, 2000, rng=0), None),
+        extent=4.0,
+        contour=False,  # first output is a log-density; no zero level set
+    )
+
+
+TASKS = {"annuli": _annuli_task, "cnf": _cnf_task}
 
 
 def resolve_task(experiment, name=None):

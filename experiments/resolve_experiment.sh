@@ -14,6 +14,11 @@ resolve_experiment() {
 		ARGS=(--dim "${1#g}" --epochs 100 --batch-size 256 --t-max 1.0 --seed 42 --runs 10)
     lambdas=(0.0001 0.001 0.01 0.1)
 		;;
+    cnf)
+		module="experiments.cnf.cnf"
+		ARGS=(--epochs 300 --batch-size 256 --t-max 1.0 --seed 42 --runs 3)
+    lambdas=(0.0001 0.001 0.01)
+		;;
     *)
       echo "Unknown experiment: $1" >&2
       return 1
