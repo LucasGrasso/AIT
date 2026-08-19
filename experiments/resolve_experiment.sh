@@ -16,7 +16,7 @@ resolve_experiment() {
 		;;
     cnf)
 		module="experiments.cnf.cnf"
-		ARGS=(--epochs 300 --batch-size 256 --t-max 1.0 --seed 42 --runs 3)
+		ARGS=(--epochs 200 --batch-size 256 --t-max 5.0 --seed 42 --runs 3)
     lambdas=(0.0001 0.001 0.01)
 		;;
     *)
