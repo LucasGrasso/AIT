@@ -1,3 +1,4 @@
+[![Paper](https://img.shields.io/badge/Paper-English-b31b1b.svg)](./AIT_NODE.pdf)
 <div align="center">
 
 # Adaptive Integration Time for Neural ODEs
@@ -52,4 +53,19 @@ chmod +x experiments/run_node.sh
 # Run the experiments
 ./experiments/run_ait.sh g2
 ./experiments/run_node.sh g2
+```
+
+
+## Citation
+
+If you found this useful, please cite as:
+
+```bibtex
+@misc{grassoramos2026ait,
+  title  = {Adaptive Integration Time for Neural ODEs},
+  author = {Grasso Ramos, Lucas},
+  year   = {2026},
+  month  = aug,
+  url    = {https://github.com/LucasGrasso/AIT}
+}
 ```
