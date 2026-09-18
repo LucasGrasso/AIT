@@ -12,3 +12,5 @@ project:
 
 site:
   template: article-theme
+  options:
+    favicon: ./favicon.ico
