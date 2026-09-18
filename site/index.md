@@ -47,7 +47,7 @@ $$
 
 Because $A(t)$ accumulates to one, we can think of our halting unit as a probability density over time. The mean-field readout $\bar{x}(t)$ is the expected state under that density: 
 $$
-\bar{x}(T^*)=\int_0^{T^*} x(t) h(x(t),t,\psi)\,dt=\mathbb{E}_h[x(T^*)].
+\bar{x}(T^*)=\int_0^{T^*} x(t) h(x(t),t,\psi)\,dt=\mathbb{E}_h[x].
 $$
 
 The implementation follows this construction directly:
