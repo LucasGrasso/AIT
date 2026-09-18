@@ -1,4 +1,6 @@
 [![Paper](https://img.shields.io/badge/Paper-English-b31b1b.svg)](./AIT_NODE.pdf)
+[![Website](https://img.shields.io/badge/Project-Website-blue)](https://ait.lucasgrasso.com.ar/)
+
 <div align="center">
 
 # Adaptive Integration Time for Neural ODEs
