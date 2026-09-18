@@ -20,7 +20,9 @@ The motivation is simple: different inputs can need different amounts of computa
 A Neural ODE evolves a state $x(t)$ using a learned vector field:
 
 $$
-\frac{dx(t)}{dt}=f(x(t),t,\theta).
+\frac{dx(t)}{dt}=f(x(t),t,\theta)
+\quad
+x(0)=x_0.
 $$
 
 And then defines its output as the state at a fixed time $T$:
@@ -50,7 +52,9 @@ The repository's `AITNeuralODE` augments the state with the accumulator and a me
 $$
 z(t)=\begin{bmatrix}x(t)\\A(t)\\\bar{x}(t)\end{bmatrix},
 \qquad
-\frac{dz(t)}{dt}=\begin{bmatrix}f(x(t),t,\theta)\\h(x(t),t,\psi)\\h(x(t),t,\psi)x(t)\end{bmatrix}.
+\frac{dz(t)}{dt}=\begin{bmatrix}f(x(t),t,\theta)\\h(x(t),t,\psi)\\h(x(t),t,\psi)x(t)\end{bmatrix}
+\qquad
+z(0)=\begin{bmatrix}x(0)\\0\\0\end{bmatrix}.  
 $$
 
 Because $A(t)$ accumulates to one, we can think of our halting unit as a probability density over time. The mean-field readout $\bar{x}(t)$ is the expected state under that density: 
@@ -77,10 +81,10 @@ Neural ODEs make the connection between depth and integration time explicit ([Ch
 AIT adds a ponder penalty to the task loss:
 
 $$
-\widehat{L}(X,\Theta)=L(X,\Theta)+\lambda T(X,\Theta),
+\hat{\mathcal{L}}(X,\Theta)=\mathcal{L}(X,\Theta)+\lambda \mathcal{T}(X,\Theta),
 $$
 
-where $T(X,\Theta)$ is the mean halting time for a batch. The training code mirrors the equation:
+where $\mathcal{L}(X,\Theta)$ is the task loss and $\mathcal{T}(X,\Theta)$ is the mean halting time for a batch. The training code mirrors the equation:
 
 ```python
 task = self.task_loss_fn(out, y)
@@ -88,7 +92,15 @@ ponder = self.lam * T.mean()
 return task + ponder, (task, ponder)
 ```
 
-The task loss still determines whether the output is useful. The coefficient $\lambda \geq 0 $ controls how strongly training prefers shorter integration. The model also exposes `t_max` as a maximum integration horizon.
+The task loss still determines whether the output is useful. The coefficient $\lambda \geq 0 $ controls how strongly training prefers shorter integration. 
+
+Because $h$ is monotone, it will eventually reach one, but we can limit the maximum integration time to $T_{max}$ by defining the halting unit as 
+
+$$
+\tilde{h}(x(t),t,\psi)=h(x(t),t,\psi)+\frac{1}{T_{max}}.
+$$
+
+A positive bias in $h$ also encourages faster halting.
 
 ## See the code and experiments
 
