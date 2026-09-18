@@ -1,0 +1,14 @@
+version: 1
+
+project:
+  title: Adaptive Integration Time for Neural ODEs
+  github: https://github.com/LucasGrasso/AIT
+  description: A simple visual explanation of AIT-NODE.
+  authors:
+    - name: Lucas Grasso Ramos
+  toc:
+    - file: index.md
+      title: AIT
+
+site:
+  template: article-theme
