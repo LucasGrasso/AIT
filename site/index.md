@@ -1,11 +1,9 @@
 ---
 title: Adaptive Integration Time for Neural ODEs
-description: What AIT-NODE does, how it works, and what the repository experiments show.
-authors:
-  - name: Lucas Grasso Ramos
+description: What AIT-NODE is, does and how it works.
 ---
 
-Adaptive Integration Time (AIT) is a way to let a Neural Ordinary Differential Equation decide how long to integrate for each input.
+Adaptive Integration Time (AIT) allows Neural Ordinary Differential Equations (NODEs) to decide dynamically on how long to integrate for each input.
 
 The motivation is simple: different inputs can need different amounts of computation. A standard Neural ODE has a fixed integration time, so every input is given the same computational horizon. AIT replaces that fixed horizon with a learned stopping event.
 
@@ -62,9 +60,9 @@ def _vector_field(self, t, state, args):
     return (self.f(t, x, args), hx, dxbar)
 ```
 
-The model can also return the endpoint $x(T^*)$. The repository defaults to the mean-field readout, while the baseline `NeuralODE` integrates to a fixed `T`.
+The model can also return the endpoint $x(T^*)$. The repository defaults to the mean-field readout, while the baseline `NeuralODE` integrates to a fixed $T$.
 
-Neural ODEs make the connection between depth and integration time explicit ([Chen et al., 2019](https://arxiv.org/abs/1806.07366)). AIT keeps that continuous-depth view but makes the effective depth depend on the trajectory.
+Neural ODEs make the connection between depth and integration time explicit ([Chen et al., 2019](https://arxiv.org/abs/1806.07366)). AIT keeps that continuous-depth view but makes the effective depth depend on the whole state trajectory.
 
 ## Encouraging less computation
 
