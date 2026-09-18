@@ -3,6 +3,14 @@ title: Adaptive Integration Time for Neural ODEs
 description: What AIT-NODE is, does and how it works.
 ---
 
+```{figure} ../plots/halting_maps-annuli2d.png
+:alt: Two heatmaps showing learned halting time and solver steps for the two-dimensional concentric-annuli task.
+:width: 1000px
+:align: center
+
+Halting-time and solver-step heatmaps for the two-dimensional concentric-annuli task.
+```
+
 Adaptive Integration Time (AIT) allows Neural Ordinary Differential Equations (NODEs) to decide dynamically on how long to integrate for each input.
 
 The motivation is simple: different inputs can need different amounts of computation. A standard Neural ODE has a fixed integration time, so every input is given the same computational horizon. AIT replaces that fixed horizon with a learned stopping event.

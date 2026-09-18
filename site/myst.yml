@@ -3,7 +3,7 @@ version: 1
 project:
   title: Adaptive Integration Time for Neural ODEs
   github: https://github.com/LucasGrasso/AIT
-  description: A simple visual explanation of AIT-NODE.
+  description: Adaptive Integration Time (AIT) allows Neural Ordinary Differential Equations (NODEs) to decide dynamically on how long to integrate for each input.
   authors:
     - name: Lucas Grasso Ramos
   toc:
