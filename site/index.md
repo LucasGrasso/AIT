@@ -11,9 +11,7 @@ description: What AIT-NODE is, does and how it works.
 Halting-time and solver-step heatmaps for the two-dimensional concentric-annuli task.
 ```
 
-Adaptive Integration Time (AIT) allows Neural Ordinary Differential Equations (NODEs) to decide dynamically on how long to integrate for each input.
-
-The motivation is simple: different inputs can need different amounts of computation. A standard Neural ODE has a fixed integration time, so every input is given the same computational horizon. AIT replaces that fixed horizon with a learned stopping event.
+Adaptive Integration Time (AIT) allows Neural Ordinary Differential Equations (NODEs) to decide dynamically on how long to integrate for each input. It is posed as a continuous-time analog of Adaptive Computation Time (ACT) ([Graves, 2016](https://arxiv.org/abs/1603.08983)). AIT-NODEs learn a halting unit that accumulates a halting rate over time, and the solver stops when the accumulated value reaches one. This allows the model to adaptively allocate computation based on the complexity of each input.
 
 ## The idea
 
@@ -43,7 +41,8 @@ $$
 T^*=\inf\{t\geq 0:A(t)=1\}.
 $$
 
-In code, the event function is simply $g(t,z)=1-A(t)$. This lets an ODE solver locate the stopping point during integration. The construction is inspired by [Adaptive Computation Time](https://arxiv.org/abs/1603.08983) for recurrent networks and uses differentiable ODE event handling ([Chen et al., 2021](https://arxiv.org/abs/2011.03902); [Shampine and Thompson, 2000](https://www.sciencedirect.com/science/article/pii/S0898122100000456)).
+In code, the event function is simply $g(t,z)=1-A(t)$. This lets an ODE solver locate the stopping point during integration.
+This can be seen as a **continuous time analog of Adaptive Computation Time** ([Graves, 2016](https://arxiv.org/abs/1603.08983)) for Neural ODEs and uses differentiable ODE event handling and event handling per-se ([Chen et al., 2021](https://arxiv.org/abs/2011.03902); [Shampine and Thompson, 2000](https://www.sciencedirect.com/science/article/pii/S0898122100000456)).
 
 ## AIT-NODE
 
